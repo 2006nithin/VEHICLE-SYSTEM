@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Vehicle Registration & Licence Authority</title>
+    <link rel="stylesheet" href="/static/style.css" />
+</head>
+<body>
+    <!-- Header with Navigation -->
+    <header class="main-header">
+        <div class="header-content">
+            <div class="logo-section">
+                <div class="logo-circle">🚗</div>
+                <div class="logo-text">
+                    <h1>National Vehicle Registration & Licence Authority</h1>
+                    <p>INTEGRATED TRANSPORT OFFICE - INTEGRATED MANAGEMENT SYSTEM</p>
+                </div>
+            </div>
+        </div>
+        <nav class="main-nav">
+            <button class="nav-btn active" data-tab="dashboard">Dashboard</button>
+            <button class="nav-btn" data-tab="new-registration">New Registration</button>
+            <button class="nav-btn" data-tab="vehicle-registry">Vehicle Registry</button>
+            <button class="nav-btn" data-tab="renew-license">Renew License</button>
+            <button class="nav-btn" data-tab="reminders">Reminders</button>
+        </nav>
+    </header>
+
+    <div class="container">
+        <!-- Dashboard Tab -->
+        <section class="tab-content active" id="dashboard">
+            <div class="dashboard-alert" id="alertBox" style="display: none;">
+                <span class="alert-icon">⚠️</span>
+                <span id="alertText"></span>
+            </div>
+
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-icon">📋</div>
+                    <div class="stat-value" id="totalRegistrations">0</div>
+                    <div class="stat-label">Total Registrations</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">✓</div>
+                    <div class="stat-value" id="activeVehicles">0</div>
+                    <div class="stat-label">Active Vehicles</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">⏰</div>
+                    <div class="stat-value" id="expiringLicenses">0</div>
+                    <div class="stat-label">Expiring Licenses</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-icon">✕</div>
+                    <div class="stat-value" id="expiredDocuments">0</div>
+                    <div class="stat-label">Expired Documents</div>
+                </div>
+            </div>
+
+            <div class="recent-section">
+                <h2>Recent Registrations</h2>
+                <div class="table-container">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>REG NO.</th>
+                                <th>OWNER</th>
+                                <th>VEHICLE</th>
+                                <th>CATEGORY</th>
+                                <th>ISSUE DATE</th>
+                                <th>EXPIRY</th>
+                                <th>STATUS</th>
+                            </tr>
+                        </thead>
+                        <tbody id="recentTable">
+                            <tr>
+                                <td colspan="7" class="no-data">Loading data...</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- New Registration Tab -->
+        <section class="tab-content" id="new-registration">
+            <h2>Register Owner + Vehicle</h2>
+            <form id="ownerForm">
+                <div class="field-row">
+                    <label>Name</label>
+                    <input type="text" name="name" placeholder="Rahul Sharma" required />
+                </div>
+                <div class="field-row">
+                    <label>National ID</label>
+                    <input type="text" name="national_id" placeholder="A123456789" required />
+                </div>
+                <div class="field-row">
+                    <label>Contact Number</label>
+                    <input type="text" name="contact_number" placeholder="+919876543210" required />
+                </div>
+                <div class="field-row">
+                    <label>Address</label>
+                    <input type="text" name="address" placeholder="123 Main Road, Bangalore" required />
+                </div>
+                <div class="field-row">
+                    <label>Vehicle Reg. Number</label>
+                    <input type="text" name="registration_number" placeholder="KA01AB1234" required />
+                </div>
+                <div class="field-row">
+                    <label>Chassis Number</label>
+                    <input type="text" name="chassis_number" placeholder="MH12AB1234CD56789" required />
+                </div>
+                <div class="field-row">
+                    <label>Model</label>
+                    <input type="text" name="model" placeholder="Sedan" required />
+                </div>
+                <div class="field-row">
+                    <label>Registration Expiry</label>
+                    <input type="date" name="registration_expiry" required />
+                </div>
+                <button type="submit">Register Owner & Vehicle</button>
+            </form>
+            <div id="ownerResult" class="result"></div>
+        </section>
+
+        <!-- Vehicle Registry Tab -->
+        <section class="tab-content" id="vehicle-registry">
+            <h2>Issue License</h2>
+            <form id="licenseForm">
+                <div class="field-row">
+                    <label>Owner ID</label>
+                    <input type="number" name="owner_id" required />
+                </div>
+                <div class="field-row">
+                    <label>Vehicle ID</label>
+                    <input type="number" name="vehicle_id" required />
+                </div>
+                <div class="field-row">
+                    <label>License Number</label>
+                    <input type="text" name="license_number" placeholder="DL-1234567890123" required />
+                </div>
+                <div class="field-row">
+                    <label>License Class</label>
+                    <input type="text" name="license_class" placeholder="LMV" required />
+                </div>
+                <div class="field-row">
+                    <label>Issue Date</label>
+                    <input type="date" name="issue_date" required />
+                </div>
+                <div class="field-row">
+                    <label>Expiry Date</label>
+                    <input type="date" name="expiry_date" required />
+                </div>
+                <button type="submit">Issue License</button>
+            </form>
+            <div id="licenseResult" class="result"></div>
+        </section>
+
+        <!-- Renew License Tab -->
+        <section class="tab-content" id="renew-license">
+            <h2>Renew License</h2>
+            <form id="renewForm">
+                <div class="field-row">
+                    <label>License ID</label>
+                    <input type="number" name="license_id" required />
+                </div>
+                <div class="field-row">
+                    <label>Owner ID</label>
+                    <input type="number" name="owner_id" required />
+                </div>
+                <div class="field-row">
+                    <label>Vehicle ID</label>
+                    <input type="number" name="vehicle_id" required />
+                </div>
+                <div class="field-row">
+                    <label>New License Number</label>
+                    <input type="text" name="license_number" placeholder="DL-1234567890123" required />
+                </div>
+                <div class="field-row">
+                    <label>License Class</label>
+                    <input type="text" name="license_class" placeholder="LMV" required />
+                </div>
+                <div class="field-row">
+                    <label>Issue Date</label>
+                    <input type="date" name="issue_date" required />
+                </div>
+                <div class="field-row">
+                    <label>Expiry Date</label>
+                    <input type="date" name="expiry_date" required />
+                </div>
+                <button type="submit">Renew License</button>
+            </form>
+            <div id="renewResult" class="result"></div>
+        </section>
+
+        <!-- Reminders Tab -->
+        <section class="tab-content" id="reminders">
+            <h2>Renewal Reminders</h2>
+            <button id="loadReminders" class="primary-btn">Load Reminders</button>
+            <pre id="reminderResult" class="result"></pre>
+        </section>
+    </div>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
