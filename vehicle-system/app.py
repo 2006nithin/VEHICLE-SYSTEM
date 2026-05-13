@@ -9,27 +9,43 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.orm import Session
 
 from db import Base, engine, SessionLocal
-from mongo_client import insert_reminder, find_reminders
-from models import Owner, Vehicle, License, OwnerCreate, OwnerResponse, LicenseCreate, LicenseResponse
+from mongo_client import insert_reminder
+from models import (
+    Owner,
+    Vehicle,
+    License,
+    OwnerCreate,
+    OwnerResponse,
+    LicenseCreate,
+    LicenseResponse,
+)
 
-# Base directory setup
+# -------------------- Paths --------------------
+
 BASE_DIR = Path(__file__).resolve().parent
 STATIC_DIR = BASE_DIR / "static"
 
-# Create DB tables
-Base.metadata.create_all(bind=engine)
+# -------------------- Logging --------------------
 
-# Logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("vehicle_system")
 
-# App instance
+# -------------------- FastAPI App --------------------
+
 app = FastAPI(
     title="Vehicle Registration and License Issuance System",
-    description="Stores owners and vehicles in DBMS and keeps reminders in MongoDB",
+    description="Stores owners and vehicles in DBMS and reminders in MongoDB",
 )
 
-# ✅ CORS (important for frontend)
+# -------------------- Startup --------------------
+
+@app.on_event("startup")
+def startup():
+    Base.metadata.create_all(bind=engine)
+    logger.info("Database tables created successfully")
+
+# -------------------- CORS --------------------
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -38,11 +54,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ✅ Static files (safe handling)
-if STATIC_DIR.exists():
-    app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
+# -------------------- Static Files --------------------
 
-# Dependency
+STATIC_DIR.mkdir(exist_ok=True)
+
+app.mount(
+    "/static",
+    StaticFiles(directory=str(STATIC_DIR)),
+    name="static"
+)
+
+# -------------------- Database Dependency --------------------
+
 def get_db():
     db = SessionLocal()
     try:
@@ -50,21 +73,28 @@ def get_db():
     finally:
         db.close()
 
-# Root route
+# -------------------- Root Route --------------------
+
 @app.get("/", response_class=HTMLResponse)
 def read_root():
     html_file = STATIC_DIR / "index.html"
+
     if not html_file.exists():
         return HTMLResponse("<h1>Frontend not found</h1>")
+
     return HTMLResponse(html_file.read_text(encoding="utf-8"))
 
-# Utility
+# -------------------- Utility Functions --------------------
+
 def raise_duplicate(message: str):
     raise HTTPException(status_code=400, detail=message)
 
 def validate_vehicle_registration(vehicle: Vehicle):
     if vehicle.registration_expiry < date.today():
-        raise HTTPException(status_code=400, detail="Vehicle registration expired")
+        raise HTTPException(
+            status_code=400,
+            detail="Vehicle registration expired"
+        )
 
 def create_reminder(owner_id, reg_no, due_date, r_type, message):
     reminder = {
@@ -75,33 +105,51 @@ def create_reminder(owner_id, reg_no, due_date, r_type, message):
         "status": "pending",
         "message": message,
     }
+
     try:
         return insert_reminder(reminder)
+
     except RuntimeError as e:
         logger.warning(f"MongoDB unavailable: {e}")
         return None
 
-# ------------------- APIs -------------------
+# -------------------- APIs --------------------
 
 @app.post("/owners/register", response_model=OwnerResponse)
-def register_owner(payload: OwnerCreate, db: Session = Depends(get_db)):
-    if db.query(Owner).filter(Owner.national_id == payload.national_id).first():
+def register_owner(
+    payload: OwnerCreate,
+    db: Session = Depends(get_db)
+):
+
+    existing_owner = db.query(Owner).filter(
+        Owner.national_id == payload.national_id
+    ).first()
+
+    if existing_owner:
         raise_duplicate("Owner already exists")
 
-    if db.query(Vehicle).filter(
+    existing_vehicle = db.query(Vehicle).filter(
         (Vehicle.registration_number == payload.vehicle.registration_number) |
         (Vehicle.chassis_number == payload.vehicle.chassis_number)
-    ).first():
+    ).first()
+
+    if existing_vehicle:
         raise_duplicate("Vehicle already exists")
 
-    owner = Owner(**payload.dict(exclude={"vehicle"}))
+    owner = Owner(**payload.model_dump(exclude={"vehicle"}))
+
     db.add(owner)
     db.commit()
     db.refresh(owner)
 
-    vehicle = Vehicle(**payload.vehicle.dict(), owner_id=owner.id)
+    vehicle = Vehicle(
+        **payload.vehicle.model_dump(),
+        owner_id=owner.id
+    )
+
     db.add(vehicle)
     db.commit()
+    db.refresh(vehicle)
 
     return OwnerResponse(
         id=owner.id,
@@ -112,38 +160,83 @@ def register_owner(payload: OwnerCreate, db: Session = Depends(get_db)):
         vehicle_id=vehicle.id,
     )
 
-@app.post("/licenses/issue", response_model=LicenseResponse)
-def issue_license(payload: LicenseCreate, db: Session = Depends(get_db)):
-    owner = db.query(Owner).get(payload.owner_id)
-    if not owner:
-        raise HTTPException(404, "Owner not found")
+# -------------------- License API --------------------
 
-    vehicle = db.query(Vehicle).get(payload.vehicle_id)
+@app.post("/licenses/issue", response_model=LicenseResponse)
+def issue_license(
+    payload: LicenseCreate,
+    db: Session = Depends(get_db)
+):
+
+    owner = db.query(Owner).filter(
+        Owner.id == payload.owner_id
+    ).first()
+
+    if not owner:
+        raise HTTPException(
+            status_code=404,
+            detail="Owner not found"
+        )
+
+    vehicle = db.query(Vehicle).filter(
+        Vehicle.id == payload.vehicle_id
+    ).first()
+
     if not vehicle:
-        raise HTTPException(404, "Vehicle not found")
+        raise HTTPException(
+            status_code=404,
+            detail="Vehicle not found"
+        )
 
     validate_vehicle_registration(vehicle)
 
-    if db.query(License).filter(License.license_number == payload.license_number).first():
+    existing_license = db.query(License).filter(
+        License.license_number == payload.license_number
+    ).first()
+
+    if existing_license:
         raise_duplicate("License already exists")
 
-    license_obj = License(**payload.dict(), active=payload.expiry_date >= date.today())
+    license_obj = License(
+        **payload.model_dump(),
+        active=payload.expiry_date >= date.today()
+    )
+
     db.add(license_obj)
     db.commit()
     db.refresh(license_obj)
 
-    create_reminder(owner.id, vehicle.registration_number, payload.expiry_date,
-                    "license_renewal", f"License expires on {payload.expiry_date}")
+    create_reminder(
+        owner.id,
+        vehicle.registration_number,
+        payload.expiry_date,
+        "license_renewal",
+        f"License expires on {payload.expiry_date}"
+    )
 
     return license_obj
 
+# -------------------- Dashboard Stats --------------------
+
 @app.get("/dashboard/stats")
 def dashboard_stats(db: Session = Depends(get_db)):
+
     return {
-        "total_registrations": db.query(Owner).count(),
-        "active_vehicles": db.query(Vehicle).filter(Vehicle.registration_expiry >= date.today()).count(),
-        "expiring_licenses": db.query(License).filter(
-            License.expiry_date <= date.today() + timedelta(days=14)
-        ).count(),
-        "expired_documents": db.query(License).filter(License.expiry_date < date.today()).count(),
+        "total_registrations":
+            db.query(Owner).count(),
+
+        "active_vehicles":
+            db.query(Vehicle).filter(
+                Vehicle.registration_expiry >= date.today()
+            ).count(),
+
+        "expiring_licenses":
+            db.query(License).filter(
+                License.expiry_date <= date.today() + timedelta(days=14)
+            ).count(),
+
+        "expired_documents":
+            db.query(License).filter(
+                License.expiry_date < date.today()
+            ).count(),
     }
